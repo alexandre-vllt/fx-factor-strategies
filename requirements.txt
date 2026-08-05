@@ -1,0 +1,23 @@
+# Core scientific stack
+numpy>=1.26
+pandas>=2.1
+pyarrow>=14.0          # for parquet I/O
+scipy>=1.11
+
+# Statistics / econometrics
+statsmodels>=0.14      # OLS regressions, Newey-West t-stats
+
+# Plotting
+matplotlib>=3.8
+seaborn>=0.13          # nicer default styling for figures
+
+# Notebook
+jupyter>=1.0
+ipykernel>=6.29
+
+# WRDS access
+wrds>=3.2              # programmatic access to WRDS (Datastream, CRSP, etc.)
+
+# Optional but handy
+tabulate>=0.9          # pretty printing tables
+openpyxl>=3.1          # in case you want to export tables to Excel

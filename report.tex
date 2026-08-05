@@ -1,0 +1,942 @@
+\documentclass[a4paper,12pt]{article}
+%====================== PACKAGES ======================
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{setspace}
+\usepackage{abstract}
+\usepackage[T1]{fontenc}
+\usepackage[top=2cm, bottom=2cm, left=2cm, right=2cm]{geometry}
+\usepackage{subfig}
+\usepackage{newunicodechar}
+\newunicodechar{₂}{$_2$}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage[backend=biber,style=numeric]{biblatex}
+\usepackage{lipsum}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{amsfonts}
+\usepackage{amsmath, amssymb}
+\usepackage{tikz, pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{siunitx}
+\sisetup{table-format=2.3, table-number-alignment=center}
+
+%====================== INFORMATION ET REGLES ======================
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}}
+
+\begin{document}
+
+%====================== TITLE PAGE ======================
+\begin{titlepage}
+\begin{center}
+\includegraphics[scale=0.15]{./logo-epfl}~\\[1cm]
+\textsc{\Large }\\[0.5cm]
+\HRule \\[0.4cm]
+{\huge \bfseries Investments Project \\[0.4cm] }
+{\large \bfseries Investments \\[0.4cm] }
+\HRule \\[1.5cm]
+\vspace{3cm}
+\begin{minipage}{0.4\textwidth}
+\begin{center} \large
+\emph{Group 14:}\\
+    Alexandre \textsc{Vallet} \\
+    Leonard \textsc{Rambeau} \\
+    Victor \textsc{Legrand} \\
+    Loric \textsc{Rey}
+\end{center}
+\end{minipage}
+\vfill
+{\large \today}
+\end{center}
+\end{titlepage}
+
+%====================== TABLE OF CONTENTS ======================
+\tableofcontents
+\newpage
+
+%====================== SECTION 1: INTRODUCTION ======================
+\section{Introduction}
+
+This report studies currency excess returns and systematic trading strategies across the G10
+foreign exchange (FX) market.
+
+The core objective is twofold. First, to characterise the statistical properties of individual
+currency excess returns. Second, to evaluate three well-established currency factor strategies
+--- carry, momentum, and dollar --- and to assess whether their return premia are statistically
+robust, economically significant, and mutually independent.
+
+We then move from individual factors to portfolio construction: in-sample mean-variance
+portfolios in Section~\ref{sec:insample}, and out-of-sample conditional mean-variance
+efficient (CMVE) portfolios in Section~\ref{sec:oos}.
+
+\paragraph{Why FX?}
+Currency markets offer a distinct testing ground for asset pricing. Unlike equities, FX
+excess returns are zero-sum across investors and tightly linked to interest rate differentials
+and exchange rate dynamics. The persistence of carry premia, in particular, constitutes a
+well-documented violation of Uncovered Interest Rate Parity (UIP) and lies at the heart of
+the ``forward premium puzzle''.
+
+\paragraph{Sample.}
+We study six G10 currencies against the US dollar (AUD, CAD, EUR, GBP, JPY, NZD) over
+the period \textbf{January 1995 to December 2024}, with December 1990 as the earliest data
+point for signal construction and a holdout window from January 1991 through December 1994
+used to initialise out-of-sample estimators. All results are reported on a monthly basis
+and annualised where appropriate.
+
+%====================== SECTION 2: DATA ======================
+\section{Data}
+\label{sec:data}
+
+\subsection{FX Rates}
+
+Spot and one-month forward mid-quote exchange rates are sourced from WRDS Datastream
+(\texttt{tr\_ds\_equities.ds2fxrate}), which stores FX series in its equities database.
+
+We use the \texttt{exrateintcode} identifiers specified in the project brief
+(e.g.\ 2427 for AUD spot, 2601 for AUD forward) for the six currency pairs. Data are
+available at daily frequency from December 1990 to December 2024. To obtain a monthly
+panel, we take the last daily observation within each calendar month.
+
+All rates are expressed in USD per unit of foreign currency (USD/FCU); series originally
+quoted in FCU/USD (e.g.\ CAD, JPY) are inverted, and series with inconsistent quoting
+conventions across spot and forward legs are handled on a per-series basis.
+
+\subsection{Interest Rates}
+
+Monthly short-term interest rates are downloaded from FRED using the OECD MEI series
+\texttt{IRSTCI01}, which reports call money / overnight interbank rates, annualised,
+not seasonally adjusted, in percentage points per year.
+
+The seven series used are:
+\begin{itemize}
+    \item USD (\texttt{IRSTCI01USM156N}), AUD (\texttt{IRSTCI01AUM156N}),
+          CAD (\texttt{IRSTCI01CAM156N}),
+    \item GBP (\texttt{IRSTCI01GBM156N}), JPY (\texttt{IRSTCI01JPM156N}),
+          NZD (\texttt{IRSTCI01NZM156N}),
+    \item a spliced EUR series using the German DEM rate
+          (\texttt{IRSTCI01DEM156N}) before January 1999 and the Euro Area rate
+          (\texttt{IRSTCI01EZM156N}) from January 1999 onward.
+\end{itemize}
+
+All rates are converted from annualised percentage points to monthly decimals by dividing
+by 1200, as required by the excess return formula.
+
+\subsection{Final Panel}
+
+The merged panel contains 409 monthly observations from December 1990 to December 2024,
+with 19 columns: spot rates $S^i_t$, one-month forward rates $F^i_t$, and risk-free rates
+$r^i_t$ for the six foreign currencies, plus the USD rate $r^{US}_t$. The panel is
+complete with no missing values.
+
+%====================== SECTION 3: EXCESS RETURNS ======================
+\section{Currency Excess Returns}
+\label{sec:excess}
+
+\subsection{Construction}
+
+The excess return in USD from a \$1 investment in currency $i$ during month $t+1$ is:
+
+\begin{equation}
+    X^i_{t+1} = \frac{S^i_{t+1}}{S^i_t}\left(1 + r^i_t\right) - \left(1 + r^{US}_t\right)
+    \label{eq:excess}
+\end{equation}
+
+This represents the payoff from borrowing \$1 at the US rate $r^{US}_t$, converting into
+$1/S^i_t$ units of foreign currency, investing at the foreign rate $r^i_t$, and
+reconverting at the realised spot rate $S^i_{t+1}$ one month later.
+
+The excess return thus combines two components:
+the \textbf{interest rate differential} $(r^i_t - r^{US}_t)$
+and the \textbf{exchange rate change} $(S^i_{t+1}/S^i_t - 1)$.
+
+Excess returns are computed over the full sample January 1991 to December 2024
+(408 observations). All performance statistics below are reported on the
+\textbf{evaluation sample}: January 1995 to December 2024 (360 observations).
+
+\subsection{Summary Statistics --- Table 1}
+
+Table~\ref{tab:table1} reports summary statistics for the six individual currency excess
+returns over the evaluation sample. Currencies are ordered alphabetically.
+
+\begin{table}[H]
+\centering
+\caption{Currency Excess Returns --- Summary Statistics (Jan 1995 -- Dec 2024)}
+\label{tab:table1}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+ & \textbf{AUD} & \textbf{CAD} & \textbf{EUR} & \textbf{GBP} & \textbf{JPY} & \textbf{NZD} \\
+\midrule
+Mean (\%, ann.)        & 1.408    & 0.334    & $-$0.888 & 0.101    & $-$3.302 & 2.258  \\
+$t$-statistic          & 0.656    & 0.227    & $-$0.527 & 0.067    & $-$1.685 & 1.013  \\
+Std (\%, ann.)         & 11.758   & 8.064    & 9.222    & 8.278    & 10.733   & 12.210 \\
+Sharpe ratio           & 0.120    & 0.041    & $-$0.096 & 0.012    & $-$0.308 & 0.185  \\
+Skewness               & $-$0.192 & $-$0.281 & 0.035    & $-$0.206 & 0.658    & $-$0.111 \\
+Excess kurtosis        & 1.303    & 2.912    & 1.214    & 1.222    & 3.254    & 1.242  \\
+$N$ obs                & 360      & 360      & 360      & 360      & 360      & 360    \\
+$\bar{r}^i$ (\%, ann.) & 3.968    & 2.586    & 1.750    & 3.001    & 0.140    & 4.459  \\
+\bottomrule
+\end{tabular}
+\caption*{\footnotesize Mean and standard deviation are annualised (multiply monthly by 12 and $\sqrt{12}$
+respectively). Sharpe ratio is annualised mean divided by annualised standard deviation.
+$t$-statistic tests $H_0: \mathbb{E}[X^i] = 0$. Skewness and excess kurtosis are
+bias-corrected. $\bar{r}^i$ is the average foreign risk-free rate over the evaluation sample.}
+\end{table}
+
+\subsection{Discussion}
+
+Several patterns emerge from Table~\ref{tab:table1}.
+
+\paragraph{Cross-sectional heterogeneity in mean returns.}
+Mean excess returns vary substantially across currencies, ranging from $-3.30\%$ for JPY
+to $+2.26\%$ for NZD.
+
+This dispersion is closely aligned with the cross-section of foreign risk-free rates: AUD
+($\bar{r}^i = 3.97\%$) and NZD ($\bar{r}^i = 4.46\%$) are the highest-yielding currencies
+and earn the largest positive excess returns, while JPY ($\bar{r}^i = 0.14\%$) is the
+lowest-yielding and earns the most negative excess return.
+
+This pattern is qualitatively consistent with a carry premium: high-rate currencies tend
+to outperform low-rate currencies on a risk-adjusted basis, violating the UIP prediction
+that exchange rate changes should exactly offset rate differentials.
+
+\paragraph{Statistical insignificance at the individual currency level.}
+Despite the cross-sectional dispersion in means, no individual currency excess return is
+statistically distinguishable from zero at conventional thresholds.
+
+The highest $t$-statistic in absolute value belongs to JPY ($-1.69$), which still falls
+short of the 1.96 threshold for 5\% significance. This reflects the high idiosyncratic
+volatility of single-currency positions (annual standard deviations ranging from 8.1\% to
+12.2\%) relative to their modest average returns.
+
+Efficient FX investing therefore requires diversification across currencies and conditioning
+on systematic signals, rather than individual currency bets.
+
+\paragraph{Fat tails and skewness.}
+Excess kurtosis is positive for all currencies, ranging from 1.21 (EUR) to 3.25 (JPY),
+indicating heavier tails than a normal distribution.
+
+The skewness pattern is noteworthy: JPY displays \emph{positive} skewness ($+0.658$),
+reflecting the occasional sharp yen appreciations during global risk-off episodes (carry
+unwind events, e.g.\ 2008, 2020). High-yield currencies AUD, CAD, and GBP display mild
+negative skewness, consistent with the well-known crash risk faced by carry investors who
+are long these currencies.
+
+%====================== SECTION 4: CARRY ======================
+\section{Carry Strategies}
+\label{sec:carry}
+
+\subsection{Motivation and Signal}
+
+The carry trade exploits the empirical failure of UIP. Rather than depreciating by the
+interest rate differential as UIP predicts, high-rate currencies tend to appreciate or
+remain stable, generating excess returns for the carry investor.
+
+The signal for carry strategies is the interest rate differential:
+\begin{equation}
+    \Delta r^i_t = r^i_t - r^{US}_t.
+\end{equation}
+
+\subsection{Strategy Construction}
+
+\paragraph{CS-CARRY (Cross-Sectional Carry).}
+Each month, currencies are ranked by $\Delta r^i_t$ (rank 1 = lowest differential, rank
+$N = 6$ = highest). Portfolio weights are assigned as
+\begin{equation}
+    w^i_t = Z \left( \mathrm{Rank}^i_t - \frac{N+1}{2} \right),
+\end{equation}
+where $Z$ is chosen such that $\sum_{i:\, w^i_t > 0} w^i_t = 1$, making the strategy
+self-financing with exactly \$1 long and \$1 short. The strategy bets on the
+\emph{relative} performance of high-rate versus low-rate currencies within the
+cross-section.
+
+\paragraph{TS-CARRY (Time-Series Carry).}
+Each currency is traded independently based on the sign of its own differential:
+\begin{equation}
+    w^i_t = \frac{\mathrm{sign}(\Delta r^i_t)}{N}.
+\end{equation}
+This strategy takes a \$1/N position in each currency independently of the others, going
+long if the foreign rate exceeds the US rate and short otherwise.
+
+All signals are formed at month-end $t$ and used to trade the following month's return
+$X^i_{t+1}$, with no look-ahead bias.
+
+\subsection{Results --- Table 2 (Carry Rows)}
+
+\begin{table}[H]
+\centering
+\caption{Factor Strategies --- Performance Statistics (Jan 1995 -- Dec 2024)}
+\label{tab:table2}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrrrrr}
+\toprule
+ & \textbf{CS-CARRY} & \textbf{TS-CARRY} & \textbf{CS-MOM} & \textbf{TS-MOM} & \textbf{DOLLAR} & \textbf{DOLLAR-CARRY} \\
+\midrule
+Mean (\%, ann.)  & 3.691 & 2.772 & 0.235  & 1.564 & $-$0.015 & 2.128 \\
+$t$-statistic    & 2.166 & 2.568 & 0.153  & 1.293 & $-$0.011 & 1.543 \\
+Std (\%, ann.)   & 9.334 & 5.912 & 8.405  & 6.624 & 7.579    & 7.554 \\
+Sharpe ratio     & 0.395 & 0.469 & 0.028  & 0.236 & $-$0.002 & 0.282 \\
+\bottomrule
+\end{tabular}
+\caption*{\footnotesize All statistics computed over the evaluation sample (360 monthly observations).
+Mean and standard deviation are annualised. $t$-statistic tests $H_0: \mathbb{E}[R] = 0$.}
+\end{table}
+
+\paragraph{Significance.}
+Both carry strategies deliver statistically significant positive mean returns. CS-CARRY
+earns $3.69\%$ per annum ($t = 2.17$) with a Sharpe ratio of $0.40$, while TS-CARRY earns
+$2.77\%$ ($t = 2.57$) with a Sharpe ratio of $0.47$. Both $t$-statistics exceed the 1.96
+threshold.
+
+\paragraph{TS dominates CS in Sharpe terms.}
+TS-CARRY achieves a \emph{higher} Sharpe ratio despite its lower mean, because its
+volatility ($5.91\%$) is substantially lower than CS-CARRY's ($9.33\%$). This reflects
+the fact that TS-CARRY positions are sized equally across currencies regardless of the
+magnitude of their differential, which limits concentration risk.
+
+\subsection{CS-CARRY Portfolio Weights Over Time}
+
+Figure~\ref{fig:weights} plots the CS-CARRY portfolio weight on each currency over time.
+The weights reveal strong persistence:
+\begin{itemize}
+    \item AUD and NZD are persistently long throughout the sample, consistent with their
+          structurally high interest rates relative to the US.
+    \item JPY is persistently short, reflecting its near-zero rate environment since the
+          mid-1990s.
+    \item CAD, EUR, and GBP occupy intermediate ranks and switch sides as their monetary
+          policy cycles diverge from or converge with the US.
+\end{itemize}
+
+An exception occurs around 2012--2017, when the Federal Reserve's zero-interest-rate policy
+(ZIRP) compressed the differential between the US rate and JPY, temporarily reducing JPY's
+short position.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{fig_cscarry_weights.pdf}
+    \caption{CS-CARRY portfolio weights on each of the six currencies (January 1995 -- December 2024).
+    Dark fill = long position; light fill = short position. AUD and NZD are persistently long
+    (high rates); JPY is persistently short (near-zero rate).}
+    \label{fig:weights}
+\end{figure}
+
+\subsection{Forward Discount and Interest Rate Differential}
+
+The net forward discount is defined (in logs) as
+\begin{equation}
+    fd^i_t = \log\frac{S^i_t}{F^i_t}.
+\end{equation}
+
+By Covered Interest Rate Parity (CIP), which holds very precisely in G10 markets via
+forward market arbitrage:
+\begin{equation}
+    \frac{F^i_t}{S^i_t} = \frac{1 + r^{US}_t}{1 + r^i_t}
+    \quad \Longrightarrow \quad
+    fd^i_t = \log(1 + r^i_t) - \log(1 + r^{US}_t) \approx \Delta r^i_t.
+\end{equation}
+
+The log-linear approximation holds for small rates. Table~\ref{tab:corr} reports the
+time-series correlation between $fd^i_t$ and $\Delta r^i_t$ for each currency.
+
+\begin{table}[H]
+\centering
+\caption{Time-Series Correlation between Forward Discount $fd^i_t$ and Rate Differential $\Delta r^i_t$}
+\label{tab:corr}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrrrrr|r}
+\toprule
+ & AUD & CAD & EUR & GBP & JPY & NZD & \textbf{Average} \\
+\midrule
+$\mathrm{Corr}(fd^i_t, \Delta r^i_t)$ & 0.793 & 0.756 & 0.944 & 0.809 & 0.973 & 0.803 & \textbf{0.846} \\
+\bottomrule
+\end{tabular}
+\caption*{\footnotesize Computed over the full sample (December 1990 -- December 2024).
+Cross-sectional average reported in bold.}
+\end{table}
+
+The cross-sectional average correlation of $0.846$ is high and positive, consistent with
+CIP theory.
+
+Deviations from unity arise from two sources: the log-level approximation error (negligible
+for typical G10 rate levels), and minor data-source timing differences between Datastream
+forward quotes and FRED interest rate observations.
+
+The sign is unambiguously positive: the carry signal embedded in the forward market
+($fd^i_t$) and the interest rate differential ($\Delta r^i_t$) are two equivalent
+representations of the same underlying information.
+
+%====================== SECTION 5: MOMENTUM ======================
+\section{Momentum Strategies}
+\label{sec:momentum}
+
+\subsection{Motivation and Signal}
+
+Momentum strategies exploit the empirical tendency of recent currency appreciations to
+persist. The signal is the 12-month spot appreciation against the dollar:
+\begin{equation}
+    s^i_{t-12,t} = \frac{S^i_t}{S^i_{t-12}} - 1.
+\end{equation}
+
+This signal is constructed on the full sample starting December 1991 (the first month for
+which both $S^i_t$ and $S^i_{t-12}$ are available given our data begins December 1990).
+
+The economic rationale rests on underreaction: markets are slow to incorporate information
+about trend-following currency dynamics, leading to persistent price momentum.
+
+\subsection{Strategy Construction}
+
+\paragraph{CS-MOM (Cross-Sectional Momentum).}
+Currencies are ranked each month by $s^i_{t-12,t}$ and assigned weights following the same
+rank-weighting formula as CS-CARRY (Equation~2).
+
+\paragraph{TS-MOM (Time-Series Momentum).}
+Each currency is traded independently based on the sign of its own momentum signal, using
+the same equal-exposure formula as TS-CARRY (Equation~3).
+
+\subsection{Results --- Table 2 (Momentum Rows)}
+
+Table~\ref{tab:table2} shows that FX momentum is substantially weaker than carry over this
+sample.
+
+\begin{itemize}
+    \item \textbf{CS-MOM} earns only $0.24\%$ per annum ($t = 0.15$, Sharpe $= 0.03$).
+    \item \textbf{TS-MOM} earns $1.56\%$ per annum ($t = 1.29$, Sharpe $= 0.24$).
+\end{itemize}
+
+\textbf{Neither strategy is statistically significant at conventional thresholds.} This is
+consistent with the broader literature, which finds that FX momentum is less robust than
+equity momentum and more concentrated in specific sub-periods of trending exchange rate
+regimes (Menkhoff et al., 2012).
+
+As with carry, TS-MOM dominates CS-MOM in Sharpe terms because its sign-based construction
+produces lower volatility ($6.62\%$ vs $8.40\%$).
+
+\subsection{Regression of TS-CARRY on Momentum Factors}
+
+To assess whether momentum captures part of the carry premium, we estimate
+\begin{equation}
+    R^{TS\text{-}CARRY}_{t+1} = \alpha + \beta_1 R^{CS\text{-}MOM}_{t+1}
+                                + \beta_2 R^{TS\text{-}MOM}_{t+1} + u_{t+1},
+\end{equation}
+using Newey-West HAC standard errors with 12 lags. Results appear in column~(1) of
+Table~\ref{tab:reg}.
+
+\begin{table}[H]
+\centering
+\caption{Regression of TS-CARRY on Momentum and Dollar Factors (HAC standard errors, 12 lags)}
+\label{tab:reg}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lcccc}
+\toprule
+ & \multicolumn{2}{c}{\textbf{(1) MOM only}} & \multicolumn{2}{c}{\textbf{(2) MOM + DOLLAR}} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+ & Coef. & $t$-stat & Coef. & $t$-stat \\
+\midrule
+Intercept ($\alpha$)     & 0.0023 & 2.79$^{**}$ & 0.0022 & 3.02$^{***}$ \\
+CS-MOM ($\beta_1$)       & 0.0196 & 0.27        & 0.0193 & 0.30 \\
+TS-MOM ($\beta_2$)       & 0.0013 & 0.01        & 0.0802 & 0.63 \\
+DOLLAR ($\beta_3$)       & ---    & ---         & 0.3195 & 2.49$^{**}$ \\
+\midrule
+$R^2$                    & \multicolumn{2}{c}{0.08\%} & \multicolumn{2}{c}{16.1\%} \\
+Standalone $t(\bar{R}^{TS\text{-}CARRY})$ & \multicolumn{4}{c}{2.57} \\
+\bottomrule
+\end{tabular}
+\caption*{\footnotesize $^{**}$ significant at 5\%; $^{***}$ significant at 1\%.
+$N = 360$ monthly observations. HAC standard errors (Newey-West, 12 lags).
+Intercepts are monthly; annualised alpha = $\alpha \times 12 \times 100$.}
+\end{table}
+
+\paragraph{Carry and momentum are nearly orthogonal.}
+In the MOM-only model, both momentum coefficients are statistically indistinguishable from
+zero ($t < 0.30$) and $R^2 = 0.08\%$, confirming that carry and momentum capture different
+information in expected return space.
+
+\paragraph{The intercept t-stat rises through the variance channel, not the mean.}
+The alpha $t$-statistic increases from 2.57 (standalone TS-CARRY mean) to 2.79 (after MOM
+controls). Since the beta coefficients on momentum are positive but near zero, the alpha
+itself is essentially unchanged.
+
+The mild increase in $t(\alpha)$ therefore reflects a small reduction in residual variance,
+not an increase in the carry mean. In short: adding momentum to a carry portfolio
+\emph{marginally} improves the precision of carry estimation, but momentum does not subsume
+or amplify carry.
+
+%====================== SECTION 6: DOLLAR ======================
+\section{Dollar Strategies}
+\label{sec:dollar}
+
+\subsection{Motivation and Signal}
+
+Carry and momentum strategies are dollar-neutral by construction: they long some currencies
+and short others, so any broad USD movement cancels out.
+
+Dollar strategies instead take a \emph{common directional position} on all foreign
+currencies simultaneously, capturing aggregate USD risk.
+
+\subsection{Strategy Construction}
+
+\paragraph{DOLLAR.}
+Go long an equal-weighted basket of all $N$ foreign currencies every month, unconditionally:
+\begin{equation}
+    R^{DOLLAR}_{t+1} = \frac{1}{N}\sum_{i=1}^N X^i_{t+1}.
+\end{equation}
+This is a permanent bet on USD depreciation. There is no signal: the investor simply holds
+the foreign currency basket.
+
+\paragraph{DOLLAR-CARRY.}
+Go long (short) the same equal-weighted basket when the average interest rate differential
+across currencies is positive (negative):
+\begin{equation}
+    R^{DOLLAR\text{-}CARRY}_{t+1} = \frac{\mathrm{sign}(\bar{\Delta r}_t)}{N}\sum_{i=1}^N X^i_{t+1},
+    \qquad \bar{\Delta r}_t = \frac{1}{N}\sum_{i=1}^N \Delta r^i_t.
+\end{equation}
+The signal $\bar{\Delta r}_t$ is formed at month-end $t$ and applied to the following
+month's returns, ensuring no look-ahead bias.
+
+\subsection{Results --- Table 2 (Complete)}
+
+Table~\ref{tab:table2} shows the complete six-strategy summary.
+
+\paragraph{DOLLAR is essentially zero.}
+DOLLAR earns a mean excess return of virtually zero ($-0.015\%$ annualised, $t = -0.01$):
+over the full evaluation period, the USD neither appreciated nor depreciated significantly
+against the equal-weighted G10 basket.
+
+With an annualised volatility of $7.58\%$ and a Sharpe ratio of $-0.002$, the unconditional
+long-basket strategy offered no compensation for its substantial directional risk.
+
+\paragraph{DOLLAR-CARRY improves but remains insignificant.}
+DOLLAR-CARRY earns $2.13\%$ annualised (Sharpe $= 0.28$), a meaningful improvement over the
+unconditional strategy. The signal switches sides almost equally over the sample (179 months
+long, 181 months short), confirming active conditioning.
+
+However, its $t$-statistic of $1.54$ falls below the 1.96 threshold: the average cross-G10
+rate differential is an imprecise predictor of broad USD direction at the monthly frequency.
+
+\subsection{Extended Regression: Adding DOLLAR to Carry}
+
+The extended regression in column~(2) of Table~\ref{tab:reg} adds DOLLAR as a third
+regressor:
+\begin{equation}
+    R^{TS\text{-}CARRY}_{t+1} = \alpha + \beta_1 R^{CS\text{-}MOM}_{t+1}
+        + \beta_2 R^{TS\text{-}MOM}_{t+1} + \beta_3 R^{DOLLAR}_{t+1} + u_{t+1}.
+\end{equation}
+
+\paragraph{$R^2$ jumps from 0.08\% to 16.1\%.}
+The DOLLAR factor explains a substantial share of TS-CARRY variance: $\hat{\beta}_3 = 0.32$
+with $t = 2.49$, the only significant slope coefficient in either regression.
+
+This positive loading reflects a structural overlap. A sign-weighted carry strategy is, by
+construction, persistently long on high-rate currencies (AUD, NZD, GBP) and short on the
+lowest-rate currency (JPY). When the USD weakens globally, all foreign currencies tend to
+appreciate simultaneously, mechanically lifting TS-CARRY returns.
+
+\paragraph{The carry premium survives the dollar control.}
+Despite the large $R^2$ increase, the carry alpha barely changes ($2.77\% \to 2.65\%$
+annualised), and its $t$-statistic \emph{rises} from 2.57 to $\mathbf{3.02}$.
+
+Controlling for dollar exposure removes variance from the carry return without reducing
+its expected value, making the carry premium easier to detect statistically. The carry
+premium is therefore genuine, structural, and distinct from dollar risk: it cannot be
+explained as mere compensation for USD directional exposure.
+
+%====================== SECTION 7: IN-SAMPLE PORTFOLIOS ======================
+\section{In-sample Portfolio Analysis}
+\label{sec:insample}
+
+We now move from individual factors to portfolio construction. We have two sets of building
+blocks:
+\begin{itemize}
+    \item the six basis currency excess returns $\{X^i_{t+1}\}_{i=1}^6$;
+    \item the six factor strategies (CS-CARRY, TS-CARRY, CS-MOM, TS-MOM, DOLLAR,
+          DOLLAR-CARRY).
+\end{itemize}
+
+For each set, we form three portfolios using different weighting schemes, then scale every
+portfolio to a common annualised volatility of $10\%$ for direct Sharpe comparison.
+
+\subsection{Weighting Schemes}
+
+\paragraph{Equal-weight (EW).}
+$w_i = 1/N$ for all $i$. Uses no signal at all and serves as a naive benchmark.
+
+\paragraph{Risk-parity (RP).}
+$w_i \propto 1/\hat{\sigma}_i$, where $\hat{\sigma}_i$ is the full in-sample standard
+deviation of asset $i$. Each asset contributes equally to total portfolio risk; only the
+diagonal of $\hat{\Sigma}$ is exploited.
+
+\paragraph{Mean-variance (MV).}
+$w^{*} \propto \hat{\Sigma}^{-1}\hat{\mu}$, where $\hat{\mu}$ and $\hat{\Sigma}$ are the
+full in-sample sample mean and covariance matrix. This is the tangency portfolio that
+maximises the in-sample Sharpe ratio.
+
+\paragraph{Vol scaling.}
+Each portfolio's raw return series is multiplied by a constant $k = 10\% / \hat{\sigma}_p$
+so that the realised annualised volatility equals $10\%$. Since this is a constant
+rescaling, it does not affect the Sharpe ratio --- it only allows mean returns to be
+compared on a common risk basis.
+
+\subsection{Results --- Table 3}
+
+\begin{table}[H]
+\centering
+\caption{In-sample Portfolios --- Performance Statistics (Jan 1995 -- Dec 2024, scaled to 10\% vol)}
+\label{tab:table3}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrrrrr}
+\toprule
+ & \textbf{EW-CCY} & \textbf{RP-CCY} & \textbf{MV-CCY} & \textbf{EW-FAC} & \textbf{RP-FAC} & \textbf{MV-FAC} \\
+\midrule
+Mean (\%, ann.)  & $-$0.020 & $-$0.102 & 4.652 & 4.081 & 4.154 & \textbf{5.989} \\
+$t$-statistic    & $-$0.011 & $-$0.056 & 2.548 & 2.235 & 2.275 & \textbf{3.280} \\
+Std (\%, ann.)   & 10.000   & 10.000   & 10.000 & 10.000 & 10.000 & 10.000 \\
+Sharpe ratio     & $-$0.002 & $-$0.010 & 0.465 & 0.408 & 0.415 & \textbf{0.599} \\
+\bottomrule
+\end{tabular}
+\caption*{\footnotesize CCY = portfolios of the six basis currencies; FAC = portfolios of the
+six factor strategies. All portfolios scaled ex-post to 10\% annualised volatility using
+the full in-sample standard deviation.}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{fig_insample_portfolios.pdf}
+    \caption{Cumulative returns of the six in-sample portfolios (10\%-vol scaled).
+    MV-FAC dominates throughout; EW-CCY drifts horizontally around \$1, mirroring the
+    near-zero DOLLAR return.}
+    \label{fig:insample}
+\end{figure}
+
+\subsection{Discussion}
+
+\subsubsection*{(c) RP-CCY vs MV-CCY: the value of correlations}
+
+\textbf{MV-CCY (Sharpe 0.465) dominates RP-CCY (Sharpe $-0.010$) by a very wide margin.}
+
+RP-CCY uses only the diagonal of the covariance matrix (individual volatilities), while
+MV-CCY uses the full $\hat{\Sigma}$ including all pairwise correlations. The huge gap in
+Sharpe ratios shows that the off-diagonal structure of the G10 covariance matrix carries
+substantial information.
+
+In particular, MV-CCY tilts heavily towards low-correlation combinations of currencies and
+exploits the natural hedging relationships among G10 pairs --- information that RP-CCY
+ignores entirely.
+
+\subsubsection*{(d) MV-CCY vs MV-FAC: a theoretical paradox resolved by estimation noise}
+
+The six factor strategies are themselves linear portfolios of the six basis currencies. The
+factor space is therefore a \emph{linear subspace} of the currency portfolio space:
+\[
+    w_F^{\top} F = w_F^{\top} A X = (A^{\top} w_F)^{\top} X.
+\]
+
+Theoretically, with true population moments, the maximum Sharpe in the factor space cannot
+exceed the maximum Sharpe in the currency space: $\mathrm{SR}^{*}_{\text{FAC}} \le
+\mathrm{SR}^{*}_{\text{CCY}}$.
+
+\textbf{In-sample, however, the opposite occurs: MV-FAC = 0.599 > MV-CCY = 0.465.}
+
+The reversal is driven by estimation noise. The six factors were explicitly engineered to
+have positive expected returns, which concentrates the signal in $\hat{\mu}_F$ and reduces
+the noise in $\hat{\Sigma}_F^{-1}\hat{\mu}_F$ relative to the noisier $6\times 6$
+currency-level system.
+
+The factor space trades theoretical breadth for estimation precision --- and the trade-off
+pays off in this sample.
+
+\subsubsection*{(e) EW-CCY vs MV-FAC: a structural inequality}
+
+\textbf{EW-CCY (Sharpe $-0.002$) is dominated by MV-FAC (Sharpe 0.599) by an order of
+magnitude.}
+
+This ordering is not coincidental: it is a mathematical necessity given the choice of
+factor set. A key observation is that
+\[
+    \text{EW-CCY} \;\equiv\; \text{DOLLAR},
+\]
+since investing $1/N$ in each currency is exactly the equal-weighted basket return.
+DOLLAR is one of the six factors used to build MV-FAC, so EW-CCY lies \emph{inside}
+the factor span.
+
+MV-FAC is by construction the tangency portfolio of the factor space, i.e.\ the maximum
+in-sample Sharpe achievable with any combination of the six factors. Since EW-CCY is itself
+a feasible factor combination (with all weight on DOLLAR), we always have
+\[
+    \mathrm{SR}^{\text{IS}}_{\text{MV-FAC}} \;\ge\; \mathrm{SR}^{\text{IS}}_{\text{EW-CCY}}.
+\]
+
+Therefore \textbf{it is not possible for EW-CCY to outperform MV-FAC in-sample as long as
+DOLLAR (or any strategy that spans EW-CCY) is included in the factor set}.
+
+The answer therefore depends explicitly on the factor set: if DOLLAR were removed, EW-CCY
+would no longer lie in the factor span and could in principle outperform MV-FAC in some
+specific sample.
+
+%====================== SECTION 8: OUT-OF-SAMPLE ======================
+\section{Out-of-sample Portfolio Analysis}
+\label{sec:oos}
+
+The in-sample portfolios of Section~\ref{sec:insample} use the full 360-month sample to
+estimate moments. This look-ahead inflates their performance: a real-time investor can
+only use data available at the formation date.
+
+We now construct \emph{conditional mean-variance efficient} (CMVE) portfolios that satisfy
+\begin{equation}
+    w^{CMVE}_t = k_t \, \hat{\Sigma}_t^{-1} \hat{\mu}_t,
+    \label{eq:cmve}
+\end{equation}
+where $\hat{\Sigma}_t$ and $\hat{\mu}_t$ are estimated using only data observed through
+month $t$, and $k_t$ is a scaling factor that targets a constant ex-ante annualised
+volatility of $10\%$.
+
+\subsection{Conditional Covariance: EWMA}
+
+The conditional covariance is estimated by an exponentially weighted moving average
+(EWMA) with the standard RiskMetrics decay parameter $\lambda = 0.97$:
+\begin{equation}
+    \hat{\Sigma}_t = (1 - \lambda) \, X_t X_t^{\top} + \lambda \, \hat{\Sigma}_{t-1}.
+\end{equation}
+
+This recursion gives an effective half-life of approximately 23 months. It is initialised
+at December 1994 with the sample covariance over the holdout window
+(January 1991 -- December 1994, 48 observations).
+
+\subsection{Conditional Mean: Two Approaches}
+
+\paragraph{Expanding-window mean (Exp).}
+A naive benchmark using all observations through $t$:
+\begin{equation}
+    \hat{\mu}^{\text{Exp}}_{i,t} = \frac{1}{N_t} \sum_{s=1}^{t} X^i_s.
+\end{equation}
+
+\paragraph{Fama-MacBeth mean (FM).}
+Each month $s$, run a cross-sectional regression of the six excess returns on the carry
+and momentum signals, with no intercept:
+\begin{equation}
+    X^i_{s+1} = \gamma_s \, \Delta r^i_s + \phi_s \, s^i_{s-12,s} + \varepsilon^i_s.
+\end{equation}
+
+Take the expanding-window average of the slope estimates,
+\[
+    \bar{\gamma}_t = \frac{1}{K_t} \sum_{s \le t-1} \hat{\gamma}_s,
+    \qquad
+    \bar{\phi}_t = \frac{1}{K_t} \sum_{s \le t-1} \hat{\phi}_s,
+\]
+and apply them to the current signals:
+\begin{equation}
+    \hat{\mu}^{\text{FM}}_{i,t} = \bar{\gamma}_t \, \Delta r^i_t + \bar{\phi}_t \, s^i_{t-12,t}.
+\end{equation}
+
+The FM regressions are pre-trained on the 36 cross-sections of the holdout window
+(December 1991 -- November 1994), so the loop starts in January 1995 with non-degenerate
+average coefficients.
+
+\subsection{Vol Targeting}
+
+For each formation date, the scaling factor is
+\begin{equation}
+    k_t = \frac{0.10}{\sqrt{\hat{\mu}_t^{\top} \hat{\Sigma}_t^{-1} \hat{\mu}_t \times 12}},
+\end{equation}
+which makes the ex-ante annualised volatility of $w^{CMVE}_t$ exactly equal to $10\%$
+under the conditional moments.
+
+Realised (ex-post) volatility may differ because the conditional moment estimates are
+themselves noisy.
+
+\subsection{Fama-MacBeth Coefficients --- Discussion (d)}
+
+We accumulate 396 cross-sectional estimates of $(\hat{\gamma}_s, \hat{\phi}_s)$ from
+December 1991 through November 2024.
+
+\begin{table}[H]
+\centering
+\caption{Fama-MacBeth Coefficient Summary (1991--2024, 396 cross-sections)}
+\label{tab:fmcoef}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrrl}
+\toprule
+ & \textbf{Mean} & $t$-stat (OLS) & $t$-stat (NW, 12 lags) & Significance \\
+\midrule
+$\bar{\gamma}$ (carry slope)    & 1.739 & 2.50 & \textbf{2.89} & ✓ at 1\% \\
+$\bar{\phi}$ (momentum slope)   & 0.016 & 1.18 & 1.43          & ✗ \\
+\bottomrule
+\end{tabular}
+\caption*{\footnotesize OLS $t$-statistic uses the cross-section variability of monthly
+slope estimates. Newey-West $t$-statistic (12 lags) is the standard HAC correction for
+monthly financial data, allowing for serial correlation in the slopes.}
+\end{table}
+
+\paragraph{How the t-stats are computed.}
+The cross-sectional regression is re-estimated each month, yielding a time series of slopes
+$\{\hat{\gamma}_s, \hat{\phi}_s\}$ over $T = 396$ months.
+
+The Fama-MacBeth $t$-statistic on $\bar{\gamma}$ is the time-series mean divided by its
+standard error, optionally adjusted for autocorrelation via Newey-West with 12 lags.
+
+\paragraph{Statistical significance.}
+The carry slope is significant under both OLS and HAC inference (NW $t = 2.89$), confirming
+a robust positive cross-sectional reward to high-rate currencies.
+
+The momentum slope is not significant (NW $t = 1.43$), echoing the weak standalone
+performance of CS-MOM and TS-MOM in Section~\ref{sec:momentum}.
+
+\paragraph{Economic interpretation.}
+A positive $\bar{\gamma}$ means that an extra unit of rate differential predicts higher
+next-month excess return --- the carry premium and a violation of UIP.
+
+A positive $\bar{\phi}$ (though small here) means that recently appreciating currencies
+tend to keep appreciating --- the FX momentum premium.
+
+\paragraph{Link to the factor strategies.}
+The FM regression projects the six currency returns onto the \emph{exact same two signals}
+used to build CS/TS-CARRY and CS/TS-MOM. The FM forecast $\hat{\mu}^{\text{FM}}_t$ is
+therefore a linear combination of the carry and momentum signals, weighted by their
+estimated cross-sectional risk premia.
+
+The CCV-FM portfolio thus internalises the two strongest empirical regularities of the FX
+cross-section in a single optimisation, rather than treating them as separate ad-hoc bets
+--- which directly explains why CCV-FM dominates CCV-Exp out-of-sample.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{fig_fm_coefs.pdf}
+    \caption{Evolution of the expanding-window FM coefficients $\bar{\gamma}_t$ (carry, top)
+    and $\bar{\phi}_t$ (momentum, bottom) over the evaluation period. Both stabilise quickly
+    after the first few years.}
+    \label{fig:fmcoef}
+\end{figure}
+
+\subsection{CCV Portfolios --- Table 4}
+
+\begin{table}[H]
+\centering
+\caption{Out-of-sample CMVE Portfolios vs.\ In-sample Benchmarks (Jan 1995 -- Dec 2024)}
+\label{tab:table4}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrrrr}
+\toprule
+ & \textbf{CCV-Exp} & \textbf{CCV-FM} & MV-CCY (IS) & MV-FAC (IS) & EW-CCY (IS) \\
+ & (OOS) & (OOS) & & & \\
+\midrule
+Mean (\%, ann.)  & 2.127 & \textbf{6.182} & 4.652 & 5.989 & $-$0.020 \\
+$t$-statistic    & 0.985 & \textbf{2.822} & 2.548 & 3.280 & $-$0.011 \\
+Std (\%, ann.)   & 11.83 & 12.00          & 10.00 & 10.00 & 10.00 \\
+Sharpe ratio     & 0.180 & \textbf{0.515} & 0.465 & 0.599 & $-$0.002 \\
+\bottomrule
+\end{tabular}
+\caption*{\footnotesize CCV-Exp and CCV-FM are constructed in real time using only data
+available at each formation date; their realised vol differs slightly from the 10\%
+ex-ante target because of estimation noise. In-sample (IS) benchmarks reproduce columns
+from Table~\ref{tab:table3} for direct comparison.}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{fig_oos_cumulative.pdf}
+    \caption{Cumulative returns of the OOS portfolios (CCV-Exp, CCV-FM) alongside the
+    in-sample MV benchmarks. CCV-FM tracks the in-sample MV-FAC closely despite operating
+    in real time.}
+    \label{fig:ooscum}
+\end{figure}
+
+\subsection{Performance Evaluation --- Discussion (f)}
+
+\paragraph{CCV-FM dominates CCV-Exp.}
+With a Sharpe of $0.515$ versus $0.180$, CCV-FM is roughly three times more efficient than
+CCV-Exp. The FM forecast exploits the cross-sectional carry and momentum signals, which
+concentrate the predictive content in a low-dimensional space.
+
+The expanding sample mean used by CCV-Exp is overwhelmed by estimation noise, especially in
+the early years where only a few dozen observations are available and the FX
+signal-to-noise ratio is very low.
+
+\paragraph{CCV-FM almost matches in-sample MV-FAC.}
+The in-sample MV portfolios use the full 360-month sample to estimate both moments, which
+is impossible in real time. CCV-FM, which forms portfolios using only past data, achieves
+a Sharpe of $0.515$ --- within $0.08$ of the in-sample MV-FAC's $0.599$.
+
+\textbf{This $0.08$ gap is the genuine, unavoidable cost of operating in real time with
+this factor structure.}
+
+\paragraph{Where the OOS degradation comes from.}
+The dominant source of estimation error is the conditional mean $\hat{\mu}_t$. Second
+moments converge much faster than means, so the EWMA covariance estimator is comparatively
+well-behaved.
+
+CCV-FM bypasses the worst part of the mean-estimation problem by imposing a parametric
+structure (two factors: carry and momentum) instead of estimating six independent currency
+means.
+
+\paragraph{Realised vs ex-ante volatility.}
+The scaling factor targets $10\%$ annualised vol using conditional moments. Realised
+volatility is $11.83\%$ for CCV-Exp and $12.00\%$ for CCV-FM --- slightly above target due
+to noise in real-time parameter estimates.
+
+By construction, the in-sample portfolios hit exactly $10\%$ because they use ex-post
+moments.
+
+%====================== CONCLUSION ======================
+\section{Conclusion}
+
+This report documents the main characteristics of currency excess returns and a complete
+factor-investing pipeline in the G10 FX market over 1995--2024.
+
+\paragraph{Individual currencies: weak signals, high noise.}
+No single currency delivers a Sharpe ratio above $0.20$ in absolute value or a significant
+$t$-statistic. This motivates systematic multi-currency strategies rather than individual
+bets.
+
+\paragraph{Factor strategies: carry dominates.}
+Among the six factor strategies, carry is the standout performer. CS-CARRY ($t = 2.17$)
+and TS-CARRY ($t = 2.57$) both deliver statistically significant returns with Sharpe
+ratios approaching $0.5$.
+
+Momentum is much weaker (CS-MOM: $t = 0.15$, TS-MOM: $t = 1.29$, both insignificant) and
+the unconditional DOLLAR factor earns essentially zero. DOLLAR-CARRY improves on DOLLAR
+but does not reach significance.
+
+\paragraph{The carry premium is robust.}
+The carry premium survives controls for both momentum and dollar exposure: its alpha
+$t$-statistic actually \emph{rises} from 2.57 standalone to 3.02 after controlling for
+MOM + DOLLAR. The premium is therefore not an artefact of momentum or USD risk.
+
+\paragraph{In-sample portfolios: factors beat raw currencies.}
+Of the six 10\%-vol-scaled portfolios, MV-FAC achieves the highest Sharpe ($0.599$),
+followed by MV-CCY ($0.465$). Naive equal-weight currency portfolios are essentially
+unprofitable.
+
+The factor space achieves better in-sample performance precisely because the factors are
+designed to concentrate the cross-sectional signal.
+
+\paragraph{Out-of-sample CMVE: parsimony wins.}
+The Fama-MacBeth-based CCV-FM achieves a Sharpe of $0.515$ in real time --- roughly three
+times the naive expanding-mean CCV-Exp ($0.180$), and within $0.08$ of the in-sample
+MV-FAC.
+
+This confirms that the practical value of mean-variance optimisation in FX hinges critically
+on imposing a parsimonious structure (two factors: carry and momentum) on the conditional
+mean. Estimating six independent means from monthly FX data is hopeless; estimating two
+risk premia from a cross-sectional regression is feasible.
+
+\paragraph{Synthesis.}
+Carry, momentum, and dollar capture distinct sources of FX risk premia, with carry being
+the strongest and momentum the weakest. Their combination through a Fama-MacBeth
+cross-sectional projection delivers a real-time Sharpe of $0.5$, demonstrating that the
+asset-pricing intuition translates directly into implementable portfolio gains.
+
+\end{document}
